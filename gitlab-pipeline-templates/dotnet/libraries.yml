@@ -1,0 +1,75 @@
+
+# Specify the Docker image
+image: mcr.microsoft.com/dotnet/sdk:latest
+
+# Used to import templates of another pipelines
+include:
+    - template: Code-Quality.gitlab-ci.yml
+    - template: Security/SAST.gitlab-ci.yml
+    
+# Define variables
+variables:
+    OBJECTS_DIRECTORY: 'obj'
+    NUGET_PACKAGES_DIRECTORY: '.nuget'
+    SOURCE_CODE_PATH: '*/*/'
+    SAST_IMAGE_SUFFIX: '-fips'
+    SCAN_KUBERNETES_MANIFESTS: "false"
+    SEARCH_MAX_DEPTH: 10
+
+# Define global cache rule
+cache:
+  key: "$CI_JOB_STAGE-$CI_COMMIT_REF_SLUG"
+  paths:
+    - '$SOURCE_CODE_PATH$OBJECTS_DIRECTORY/project.assets.json'
+    - '$SOURCE_CODE_PATH$OBJECTS_DIRECTORY/*.csproj.nuget.*'
+    - '$NUGET_PACKAGES_DIRECTORY'
+  policy: pull-push
+
+
+stages:
+    - build
+    - test
+    - deploy
+
+
+# Define pipeline steps:
+dotnet_build:
+  stage: build
+  script:
+    - dotnet build -c Release
+
+dotnet_test:
+  stage: test
+  script:
+    - 'dotnet test --test-adapter-path:. --logger:"junit;LogFilePath=..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose"'
+  artifacts:
+    when: always
+    paths:
+      - ./**/*test-result.xml
+    reports:
+      junit:
+        - ./**/*test-result.xml
+
+code_quality:
+  stage: test
+  variables:
+    REPORT_FORMAT: html
+  artifacts:
+    paths: [gl-code-quality-report.html] 
+
+sast_analysis:
+  stage: test
+  artifacts:
+    paths: [gl-sast-report.json] 
+
+publish_package:
+  only:
+    - main 
+  stage: deploy
+  script:
+    - dotnet nuget add source "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/nuget/index.json" --name gitlab --username gitlab-ci-token --password $CI_JOB_TOKEN --store-password-in-clear-text
+    - dotnet build -c Release
+    - dotnet pack -c Release -o ./packages
+    - dotnet nuget push "./packages/*.nupkg" --source gitlab
+#  environment: production
+ 

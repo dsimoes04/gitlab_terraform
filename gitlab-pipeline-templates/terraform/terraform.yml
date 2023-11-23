@@ -1,0 +1,62 @@
+
+# Specify the Docker image
+image: homebrew/ubuntu16.04:latest
+
+# Used to import templates of another pipelines
+# include:
+#     - template: Code-Quality.gitlab-ci.yml
+#     - template: Security/SAST.gitlab-ci.yml
+    
+# Define variables
+variables:
+    ARM_CLIENT_ID: ${ARM_CLIENT_ID}
+    ARM_CLIENT_SECRET: ${ARM_CLIENT_SECRET}
+    ARM_TENANT_ID: ${ARM_TENANT_ID}
+    GITLAB_TOKEN: ${GITLAB_TOKEN}
+    PLAN_JSON: plan.json
+
+before_script:
+  - brew update
+  - brew install terraform
+  - brew install terragrunt
+  - brew install azure-cli
+  - terragrunt run-all init
+
+stages:
+    - validate
+    - plan
+    - apply
+
+validate:
+  stage: Terragrunt Validate
+  script:
+    - terragrunt run-all validate
+  only:
+    - merge_requests
+
+plan:
+  stage: Terragrunt Plan
+  script:
+    - terragrunt run-all plan -out "terraform.tfplan"
+    - terraform show --json "terraform.tfplan" | convert_report > $PLAN_JSON
+  only:
+    - merge_requests
+  env:
+    GITLAB_TOKEN: ${GITLAB_TOKEN}
+    ARM_CLIENT_ID: ${ARM_CLIENT_ID}
+    ARM_CLIENT_SECRET: ${ARM_CLIENT_SECRET}
+    ARM_TENANT_ID: ${ARM_TENANT_ID}
+
+apply:
+  stage: Terragrunt Apply
+  script:
+    - terragrunt run-all apply --terragrunt-non-interactive
+  dependencies:
+    - plan
+  only:
+    - main
+  env:
+    GITLAB_TOKEN: ${GITLAB_TOKEN}
+    ARM_CLIENT_ID: ${ARM_CLIENT_ID}
+    ARM_CLIENT_SECRET: ${ARM_CLIENT_SECRET}
+    ARM_TENANT_ID: ${ARM_TENANT_ID}

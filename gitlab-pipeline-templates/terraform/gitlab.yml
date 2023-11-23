@@ -1,0 +1,16 @@
+include:
+  - local: 'terraform.yml'
+
+plan:gilab_groups:
+  variables:
+    INSTALL_DIRECTORY: 'gitlab-groups/'
+  rules:
+    - changes:
+        - gitlab-groups/*
+  only:
+    - merge_requests
+  env:
+    GITLAB_TOKEN: ${GITLAB_TOKEN}
+    ARM_CLIENT_ID: ${ARM_CLIENT_ID}
+    ARM_CLIENT_SECRET: ${ARM_CLIENT_SECRET}
+    ARM_TENANT_ID: ${ARM_TENANT_ID}

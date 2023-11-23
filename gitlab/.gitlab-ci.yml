@@ -1,0 +1,13 @@
+workflow:  
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - changes:
+      - gitlab-groups/**
+  trigger:
+    include:
+      - project: 'xcoreng/gitlab-pipeline-templates'
+        ref: main
+        file: /terraform/terraform.yml
+  
